@@ -1,0 +1,27 @@
+<div class="card">
+  <h1>FIAP Security Software</h1>
+
+  <p>
+    <strong>Status da sua requisição:</strong>
+    <%= @analysis.translate_status %>
+  </p>
+
+  <% if @analysis.pending? || @analysis.processing? %>
+    <p>
+        Seu arquivo está em análise. Atualize a página em alguns minutos novamente.
+    </p>
+  <% end %>
+
+  <% if @analysis.completed? %>
+    <div class="result">
+        <%= link_to "Visualizar em Markdown", analysis_path(@analysis, format: :md) %>
+    </div>
+  <% end %>
+
+  <% if @analysis.failed? %>
+    <div class="result">
+        Falha ao analisar arquivo
+      <%= @analysis.result %>
+    </div>
+  <% end %>
+</div>

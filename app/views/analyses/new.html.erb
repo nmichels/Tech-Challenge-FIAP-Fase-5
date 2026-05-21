@@ -1,0 +1,26 @@
+<div class="card">
+  <h1>FIAP Software Security</h1>
+  <h2>Sistema de análise de ameaças utilizando a metodologia STRIDE</h2>
+
+  <p>
+    Realize o upload do diagrama da arquitetura do seu sistema e iremos
+    disponibilizar insights sobre a sua infraestrutura.
+    Suportamos arquivo markdown ou imagem.
+    <strong>
+        A plataforma possui melhor desempenho com provedores que possuem ampla documentação,
+        como AWS, GCP e Azure.
+    </strong>
+  </p>
+
+  <%= form_with model: @analysis, local: true do |form| %>
+    <div>
+      <%= form.file_field :file, required: true %>
+    </div>
+
+    <br>
+
+    <div>
+      <%= form.submit "Enviar e Analisar", class: "button" %>
+    </div>
+  <% end %>
+</div>

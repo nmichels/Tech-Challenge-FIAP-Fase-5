@@ -1,0 +1,12 @@
+services:
+  redis:
+    image: valkey/valkey:7.2-alpine
+    container_name: redis
+    restart: always
+    init: true
+    ports:
+      - "6379:6379"
+    volumes:
+      - fiap_security_redis:/data
+volumes:
+  fiap_security_redis:
