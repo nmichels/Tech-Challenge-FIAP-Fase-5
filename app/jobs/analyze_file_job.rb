@@ -18,6 +18,8 @@ class AnalyzeFileJob < ApplicationJob
       status: "completed",
       result: result
     )
+
+    ExportAnalysisResultJob.perform_later(analysis.id)
   rescue => e
     analysis.update!(
       status: "failed",
@@ -59,12 +61,12 @@ class AnalyzeFileJob < ApplicationJob
             content: [
               type: "input_file",
               input_file: {
-                data: base_64_content,
+                data: base_64_content
               }
             ]
           }
         ],
-        modalities: ["text"]
+        modalities: [ "text" ]
     )
 
     response.choices.first.message.content

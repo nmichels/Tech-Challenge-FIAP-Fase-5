@@ -1,4 +1,5 @@
 class Analysis < ApplicationRecord
+  has_one :analysis_export, dependent: :destroy
   has_one_attached :file
 
   validates :kind, presence: true

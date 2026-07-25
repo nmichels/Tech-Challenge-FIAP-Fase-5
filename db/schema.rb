@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_05_21_005957) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_25_000000) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -47,6 +47,15 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_21_005957) do
     t.datetime "updated_at", null: false
   end
 
+  create_table "analysis_exports", force: :cascade do |t|
+    t.integer "analysis_id", null: false
+    t.datetime "created_at", null: false
+    t.string "format", null: false
+    t.datetime "updated_at", null: false
+    t.index ["analysis_id"], name: "index_analysis_exports_on_analysis_id", unique: true
+  end
+
   add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
   add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
+  add_foreign_key "analysis_exports", "analyses"
 end
