@@ -14,7 +14,13 @@
 
   <% if @analysis.completed? %>
     <div class="result">
-        <%= link_to "Visualizar em Markdown", analysis_path(@analysis, format: :md) %>
+      <%= link_to "Visualizar em Markdown", analysis_path(@analysis, format: :md) %>
+
+      <% if @analysis.analysis_export&.file&.attached? %>
+        <%= link_to "Visualizar JSON", analysis_analysis_export_path(@analysis) %>
+      <% else %>
+        <span>Exportação JSON em andamento</span>
+      <% end %>
     </div>
   <% end %>
 
