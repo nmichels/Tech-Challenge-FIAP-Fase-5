@@ -97,7 +97,10 @@
       method: :post,
       id: "generate-resolutions",
       disabled: @analysis.analysis_export&.resolution_generation_status.in?(%w[queued processing completed]) %>
-    <p id="resolutions-progress" aria-live="polite" <%= "hidden" unless @analysis.analysis_export&.resolution_generation_status.in?(%w[queued processing]) %>>Gerando correções...</p>
+    <p id="resolutions-progress" aria-live="polite" <%= "hidden" unless @analysis.analysis_export&.resolution_generation_status.in?(%w[queued processing]) %>>
+      <span id="resolutions-loading-text">Gerando correções...</span>
+      <span id="resolutions-loading-spinner" aria-hidden="true">/</span>
+    </p>
     <p id="resolutions-error" class="result" hidden></p>
     <p id="resolutions-empty" <%= "hidden" if @risk_assessment_resolutions.any? %>>Nenhuma correção foi gerada ainda.</p>
     <ul id="resolution-links">
@@ -136,32 +139,46 @@
   const resolutionsError = document.getElementById("resolutions-error")
   const resolutionsEmpty = document.getElementById("resolutions-empty")
   const resolutionLinks = document.getElementById("resolution-links")
-  const loadingText = document.getElementById("analysis-loading-text")
-  const loadingSpinner = document.getElementById("analysis-loading-spinner")
   const loadingStates = ["Carregando...", "Carregando..", "Carregando."]
+  const resolutionLoadingStates = ["Gerando correções...", "Gerando correções..", "Gerando correções."]
   const spinnerStates = ["/", "—", "\\", "|"]
-  let loadingFrame = 0
-  let loadingAnimation
+  const loadingAnimations = new Map()
   let markdown = document.getElementById("initial-markdown").value
   let json = jsonPreview.textContent
   const analysisId = root.dataset.analysisId
 
-  const startLoadingAnimation = () => {
-    if (!loadingText || loadingAnimation) return
+  const startLoadingAnimation = (name, text, spinner, states) => {
+    if (!text || !spinner || loadingAnimations.has(name)) return
 
-    loadingAnimation = window.setInterval(() => {
-      loadingFrame += 1
-      loadingText.textContent = loadingStates[loadingFrame % loadingStates.length]
-      loadingSpinner.textContent = spinnerStates[loadingFrame % spinnerStates.length]
+    let frame = 0
+    const animation = window.setInterval(() => {
+      frame += 1
+      text.textContent = states[frame % states.length]
+      spinner.textContent = spinnerStates[frame % spinnerStates.length]
     }, 350)
+    loadingAnimations.set(name, animation)
   }
 
-  const stopLoadingAnimation = () => {
-    window.clearInterval(loadingAnimation)
-    loadingAnimation = undefined
+  const stopLoadingAnimation = (name) => {
+    window.clearInterval(loadingAnimations.get(name))
+    loadingAnimations.delete(name)
   }
 
-  startLoadingAnimation()
+  startLoadingAnimation(
+    "analysis",
+    document.getElementById("analysis-loading-text"),
+    document.getElementById("analysis-loading-spinner"),
+    loadingStates
+  )
+
+  if (!resolutionsProgress.hidden) {
+    startLoadingAnimation(
+      "resolutions",
+      document.getElementById("resolutions-loading-text"),
+      document.getElementById("resolutions-loading-spinner"),
+      resolutionLoadingStates
+    )
+  }
 
   const renderMarkdown = () => {
     markdownPreview.innerHTML = DOMPurify.sanitize(marked.parse(markdown))
@@ -195,14 +212,14 @@
             break
           case "analysis_completed":
             progress.hidden = true
-            stopLoadingAnimation()
+            stopLoadingAnimation("analysis")
             resultLinks.hidden = false
             jsonSection.hidden = false
             jsonProgress.hidden = false
             break
           case "analysis_failed":
             progress.hidden = true
-            stopLoadingAnimation()
+            stopLoadingAnimation("analysis")
             error.hidden = false
             error.textContent = "Falha ao analisar arquivo: " + data.error
             break
@@ -228,9 +245,16 @@
             generateResolutions.disabled = true
             resolutionsProgress.hidden = false
             resolutionsError.hidden = true
+            startLoadingAnimation(
+              "resolutions",
+              document.getElementById("resolutions-loading-text"),
+              document.getElementById("resolutions-loading-spinner"),
+              resolutionLoadingStates
+            )
             break
           case "resolutions_completed":
             resolutionsProgress.hidden = true
+            stopLoadingAnimation("resolutions")
             resolutionsEmpty.hidden = data.resolutions.length > 0
             resolutionLinks.replaceChildren(...data.resolutions.map((resolution) => {
               const item = document.createElement("li")
@@ -244,6 +268,7 @@
           case "resolutions_failed":
             generateResolutions.disabled = false
             resolutionsProgress.hidden = true
+            stopLoadingAnimation("resolutions")
             resolutionsError.hidden = false
             resolutionsError.textContent = "Falha ao gerar correções: " + data.error
             break
@@ -253,7 +278,8 @@
   )
 
   window.addEventListener("pagehide", () => {
-    stopLoadingAnimation()
+    loadingAnimations.forEach((animation) => window.clearInterval(animation))
+    loadingAnimations.clear()
     subscription.unsubscribe()
     consumer.disconnect()
   }, { once: true })

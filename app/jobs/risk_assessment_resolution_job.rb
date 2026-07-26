@@ -53,7 +53,7 @@ class RiskAssessmentResolutionJob < ApplicationJob
 
   def generate_resolution(export, finding)
     content = client.chat.completions.create(
-      model: "gpt-5.3-codex",
+      model: "gpt-5.6-sol",
       messages: [
         {
           role: "system",
