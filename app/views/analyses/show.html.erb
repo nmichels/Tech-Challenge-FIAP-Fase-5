@@ -252,18 +252,26 @@
               resolutionLoadingStates
             )
             break
+          case "resolution_completed": {
+            const existingLink = resolutionLinks.querySelector(
+              `[data-resolution-id="${data.resolution.id}"]`
+            )
+            if (!existingLink) {
+              const item = document.createElement("li")
+              const link = document.createElement("a")
+              link.href = data.resolution.url
+              link.textContent = data.resolution.label
+              link.dataset.resolutionId = data.resolution.id
+              item.appendChild(link)
+              resolutionLinks.appendChild(item)
+            }
+            resolutionsEmpty.hidden = true
+            break
+          }
           case "resolutions_completed":
             resolutionsProgress.hidden = true
             stopLoadingAnimation("resolutions")
-            resolutionsEmpty.hidden = data.resolutions.length > 0
-            resolutionLinks.replaceChildren(...data.resolutions.map((resolution) => {
-              const item = document.createElement("li")
-              const link = document.createElement("a")
-              link.href = resolution.url
-              link.textContent = resolution.label
-              item.appendChild(link)
-              return item
-            }))
+            resolutionsEmpty.hidden = resolutionLinks.children.length > 0
             break
           case "resolutions_failed":
             generateResolutions.disabled = false

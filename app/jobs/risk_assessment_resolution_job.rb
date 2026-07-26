@@ -10,17 +10,18 @@ class RiskAssessmentResolutionJob < ApplicationJob
     broadcast(analysis, event: "resolutions_started")
 
     findings = qualifying_findings(JSON.parse(export.file.download))
-    resolutions = findings.each_with_index.map do |finding, finding_index|
+    findings.each_with_index do |finding, finding_index|
       existing = export.risk_assessment_resolutions.find_by(finding_index: finding_index)
-      existing || generate_resolution(export, finding.merge(finding_index: finding_index))
+      resolution = existing || generate_resolution(export, finding.merge(finding_index: finding_index))
+      broadcast(
+        analysis,
+        event: "resolution_completed",
+        resolution: resolution_payload(analysis, resolution)
+      )
     end
 
     export.update!(resolution_generation_status: "completed")
-    broadcast(
-      analysis,
-      event: "resolutions_completed",
-      resolutions: resolutions.map { |resolution| resolution_payload(analysis, resolution) }
-    )
+    broadcast(analysis, event: "resolutions_completed")
   rescue => e
     export&.update_column(:resolution_generation_status, "failed")
     broadcast(analysis, event: "resolutions_failed", error: e.message) if analysis
