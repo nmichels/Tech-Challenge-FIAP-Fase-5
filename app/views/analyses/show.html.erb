@@ -9,12 +9,9 @@
   </p>
 
   <% if @analysis.pending? || @analysis.processing? %>
-    <p id="analysis-progress">
-      Seu arquivo está em análise. O resultado aparecerá abaixo conforme for gerado.
-    </p>
-  <% else %>
-    <p id="analysis-progress" hidden>
-      Seu arquivo está em análise. O resultado aparecerá abaixo conforme for gerado.
+    <p id="analysis-progress" aria-live="polite">
+      <span id="analysis-loading-text">Carregando...</span>
+      <span id="analysis-loading-spinner" aria-hidden="true">/</span>
     </p>
   <% end %>
 
@@ -111,8 +108,31 @@
   const resultLinks = document.getElementById("result-links")
   const jsonLink = document.getElementById("json-link")
   const jsonLinkPending = document.getElementById("json-link-pending")
+  const loadingText = document.getElementById("analysis-loading-text")
+  const loadingSpinner = document.getElementById("analysis-loading-spinner")
+  const loadingStates = ["Carregando...", "Carregando..", "Carregando."]
+  const spinnerStates = ["/", "—", "\\", "|"]
+  let loadingFrame = 0
+  let loadingAnimation
   let markdown = document.getElementById("initial-markdown").value
   let json = jsonPreview.textContent
+
+  const startLoadingAnimation = () => {
+    if (!loadingText || loadingAnimation) return
+
+    loadingAnimation = window.setInterval(() => {
+      loadingFrame += 1
+      loadingText.textContent = loadingStates[loadingFrame % loadingStates.length]
+      loadingSpinner.textContent = spinnerStates[loadingFrame % spinnerStates.length]
+    }, 350)
+  }
+
+  const stopLoadingAnimation = () => {
+    window.clearInterval(loadingAnimation)
+    loadingAnimation = undefined
+  }
+
+  startLoadingAnimation()
 
   const renderMarkdown = () => {
     markdownPreview.innerHTML = DOMPurify.sanitize(marked.parse(markdown))
@@ -139,12 +159,14 @@
             break
           case "analysis_completed":
             progress.hidden = true
+            stopLoadingAnimation()
             resultLinks.hidden = false
             jsonSection.hidden = false
             jsonProgress.hidden = false
             break
           case "analysis_failed":
             progress.hidden = true
+            stopLoadingAnimation()
             error.hidden = false
             error.textContent = "Falha ao analisar arquivo: " + data.error
             break
@@ -171,6 +193,7 @@
   )
 
   window.addEventListener("pagehide", () => {
+    stopLoadingAnimation()
     subscription.unsubscribe()
     consumer.disconnect()
   }, { once: true })
