@@ -117,19 +117,6 @@
   let markdown = document.getElementById("initial-markdown").value
   let json = jsonPreview.textContent
   const analysisId = root.dataset.analysisId
-  const cableLog = (message, details = {}) => {
-    console.info(`[AnalysisChannel] ${message}`, {
-      analysisId,
-      timestamp: new Date().toISOString(),
-      ...details
-    })
-  }
-
-  actionCableLogger.enabled = true
-  cableLog("initializing subscription", {
-    pageVisibility: document.visibilityState,
-    online: navigator.onLine
-  })
 
   const startLoadingAnimation = () => {
     if (!loadingText || loadingAnimation) return
@@ -158,17 +145,7 @@
   const subscription = consumer.subscriptions.create(
     { channel: "AnalysisChannel", analysis_id: analysisId },
     {
-      initialized() {
-        cableLog("subscription initialized")
-      },
-      connected({ reconnected } = {}) {
-        cableLog("subscription connected", { reconnected: Boolean(reconnected) })
-      },
-      disconnected({ willAttemptReconnect } = {}) {
-        cableLog("subscription disconnected", {
-          willAttemptReconnect: Boolean(willAttemptReconnect)
-        })
-      },
+
       rejected() {
         console.error("[AnalysisChannel] subscription rejected", {
           analysisId,
@@ -176,13 +153,6 @@
         })
       },
       received(data) {
-        cableLog("message received", {
-          event: data.event,
-          deltaLength: typeof data.delta === "string" ? data.delta.length : undefined,
-          contentLength: typeof data.content === "string" ? data.content.length : undefined,
-          hasError: Boolean(data.error)
-        })
-
         if (data.status) status.textContent = data.status
 
         switch (data.event) {
@@ -230,14 +200,7 @@
     }
   )
 
-  window.addEventListener("online", () => cableLog("browser online"))
-  window.addEventListener("offline", () => cableLog("browser offline"))
-  document.addEventListener("visibilitychange", () => {
-    cableLog("page visibility changed", { pageVisibility: document.visibilityState })
-  })
-
-  window.addEventListener("pagehide", (event) => {
-    cableLog("page hidden; closing subscription", { persisted: event.persisted })
+  window.addEventListener("pagehide", () => {
     stopLoadingAnimation()
     subscription.unsubscribe()
     consumer.disconnect()

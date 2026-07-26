@@ -24,11 +24,6 @@ class ExportAnalysisResultJob < ApplicationJob
   private
 
   def broadcast(analysis, payload)
-    Rails.logger.info(
-      "[ActionCable] Broadcasting AnalysisChannel event=#{payload[:event]} " \
-      "analysis_id=#{analysis.id} delta_length=#{payload[:delta]&.length || 0} " \
-      "adapter=#{ActionCable.server.config.cable.fetch("adapter")}"
-    )
     AnalysisChannel.broadcast_to(analysis, payload)
   end
 
