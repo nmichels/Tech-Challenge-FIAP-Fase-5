@@ -5,9 +5,10 @@ module JsonSchema
       "type" => "object",
       "properties" => {
         "explanation" => { "type" => "string" },
-        "resolution" => { "type" => "string" }
+        "resolution" => { "type" => "string" },
+        "impact_category" => { "type" => "string" },
       },
-      "required" => %w[explanation resolution],
+      "required" => %w[explanation resolution impact_category],
       "additionalProperties" => false
     }
   }.freeze

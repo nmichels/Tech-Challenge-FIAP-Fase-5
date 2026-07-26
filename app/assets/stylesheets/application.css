@@ -46,3 +46,15 @@
 #result-links[hidden] {
   display: none;
 }
+
+#resolutions-section form {
+  display: inline-block;
+}
+
+#resolution-links {
+  padding-left: 20px;
+}
+
+#resolution-links li + li {
+  margin-top: 8px;
+}

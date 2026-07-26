@@ -16,5 +16,6 @@ Rails.application.routes.draw do
   root "analyses#new"
   resources :analyses, only: [ :new, :create, :show ] do
     resource :analysis_export, only: :show
+    resources :risk_assessment_resolutions, only: [ :create, :show ]
   end
 end

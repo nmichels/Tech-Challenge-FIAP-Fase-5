@@ -42,6 +42,8 @@ class ExportAnalysisResultJob < ApplicationJob
           role: "system",
           content: <<~PROMPT
             Convert the supplied software security analysis to JSON using the required schema.
+            ### Critical
+            impact_category should be in English always for future processing but otherwise
             Preserve the original Brazilian Portuguese content and do not add risks that are not present in the analysis.
           PROMPT
         },

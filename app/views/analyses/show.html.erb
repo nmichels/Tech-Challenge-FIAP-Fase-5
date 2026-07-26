@@ -89,6 +89,28 @@
       <span id="json-link-pending">Exportação JSON em andamento</span>
     </div>
   <% end %>
+
+  <section id="resolutions-section" class="preview" <%= "hidden" unless @json_content.present? %>>
+    <h2>Correções sugeridas</h2>
+    <%= button_to "Gerar correções",
+      analysis_risk_assessment_resolutions_path(@analysis),
+      method: :post,
+      id: "generate-resolutions",
+      disabled: @analysis.analysis_export&.resolution_generation_status.in?(%w[queued processing completed]) %>
+    <p id="resolutions-progress" aria-live="polite" <%= "hidden" unless @analysis.analysis_export&.resolution_generation_status.in?(%w[queued processing]) %>>Gerando correções...</p>
+    <p id="resolutions-error" class="result" hidden></p>
+    <p id="resolutions-empty" <%= "hidden" if @risk_assessment_resolutions.any? %>>Nenhuma correção foi gerada ainda.</p>
+    <ul id="resolution-links">
+      <% @risk_assessment_resolutions.each do |resolution| %>
+        <% if resolution.file.attached? %>
+          <li>
+            <%= link_to "#{resolution.risk_type.humanize} — #{resolution.impact_category}",
+              analysis_risk_assessment_resolution_path(@analysis, resolution) %>
+          </li>
+        <% end %>
+      <% end %>
+    </ul>
+  </section>
 </div>
 
 <script type="module">
@@ -108,6 +130,12 @@
   const resultLinks = document.getElementById("result-links")
   const jsonLink = document.getElementById("json-link")
   const jsonLinkPending = document.getElementById("json-link-pending")
+  const resolutionsSection = document.getElementById("resolutions-section")
+  const generateResolutions = document.getElementById("generate-resolutions")
+  const resolutionsProgress = document.getElementById("resolutions-progress")
+  const resolutionsError = document.getElementById("resolutions-error")
+  const resolutionsEmpty = document.getElementById("resolutions-empty")
+  const resolutionLinks = document.getElementById("resolution-links")
   const loadingText = document.getElementById("analysis-loading-text")
   const loadingSpinner = document.getElementById("analysis-loading-spinner")
   const loadingStates = ["Carregando...", "Carregando..", "Carregando."]
@@ -191,9 +219,33 @@
             jsonProgress.hidden = true
             jsonLink.hidden = false
             jsonLinkPending.hidden = true
+            resolutionsSection.hidden = false
             break
           case "export_failed":
             jsonProgress.textContent = "Falha ao exportar JSON: " + data.error
+            break
+          case "resolutions_started":
+            generateResolutions.disabled = true
+            resolutionsProgress.hidden = false
+            resolutionsError.hidden = true
+            break
+          case "resolutions_completed":
+            resolutionsProgress.hidden = true
+            resolutionsEmpty.hidden = data.resolutions.length > 0
+            resolutionLinks.replaceChildren(...data.resolutions.map((resolution) => {
+              const item = document.createElement("li")
+              const link = document.createElement("a")
+              link.href = resolution.url
+              link.textContent = resolution.label
+              item.appendChild(link)
+              return item
+            }))
+            break
+          case "resolutions_failed":
+            generateResolutions.disabled = false
+            resolutionsProgress.hidden = true
+            resolutionsError.hidden = false
+            resolutionsError.textContent = "Falha ao gerar correções: " + data.error
             break
         }
       }
