@@ -122,13 +122,19 @@ class AnalyzeFileJob < ApplicationJob
 
     client.chat.completions.stream(**params).text.each do |delta|
       result << delta
-      broadcast(analysis, event: "analysis_delta", delta: delta)
+      analysis.update_column(:result, result)
+      broadcast(analysis, event: "analysis_delta", delta: delta, content: result)
     end
 
     result
   end
 
   def broadcast(analysis, payload)
+    Rails.logger.info(
+      "[ActionCable] Broadcasting AnalysisChannel event=#{payload[:event]} " \
+      "analysis_id=#{analysis.id} delta_length=#{payload[:delta]&.length || 0} " \
+      "adapter=#{ActionCable.server.config.cable.fetch("adapter")}"
+    )
     AnalysisChannel.broadcast_to(analysis, payload)
   end
 

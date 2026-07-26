@@ -28,7 +28,7 @@
     <section id="markdown-section" class="preview">
       <h2>Análise</h2>
       <div id="markdown-preview" class="markdown-preview"></div>
-      <%= tag.textarea @analysis.completed? ? @analysis.result : "", id: "initial-markdown", hidden: true %>
+      <%= tag.textarea @analysis.result.to_s, id: "initial-markdown", hidden: true %>
     </section>
   <% else %>
     <section id="markdown-section" class="preview" hidden>
@@ -92,7 +92,7 @@
 </div>
 
 <script type="module">
-  import { createConsumer } from "<%= asset_path("actioncable.esm.js") %>"
+  import { createConsumer, logger as actionCableLogger } from "<%= asset_path("actioncable.esm.js") %>"
   import { marked } from "https://cdn.jsdelivr.net/npm/marked@16.1.1/+esm"
   import DOMPurify from "https://cdn.jsdelivr.net/npm/dompurify@3.2.6/+esm"
 
@@ -116,6 +116,20 @@
   let loadingAnimation
   let markdown = document.getElementById("initial-markdown").value
   let json = jsonPreview.textContent
+  const analysisId = root.dataset.analysisId
+  const cableLog = (message, details = {}) => {
+    console.info(`[AnalysisChannel] ${message}`, {
+      analysisId,
+      timestamp: new Date().toISOString(),
+      ...details
+    })
+  }
+
+  actionCableLogger.enabled = true
+  cableLog("initializing subscription", {
+    pageVisibility: document.visibilityState,
+    online: navigator.onLine
+  })
 
   const startLoadingAnimation = () => {
     if (!loadingText || loadingAnimation) return
@@ -142,9 +156,33 @@
 
   const consumer = createConsumer()
   const subscription = consumer.subscriptions.create(
-    { channel: "AnalysisChannel", analysis_id: root.dataset.analysisId },
+    { channel: "AnalysisChannel", analysis_id: analysisId },
     {
+      initialized() {
+        cableLog("subscription initialized")
+      },
+      connected({ reconnected } = {}) {
+        cableLog("subscription connected", { reconnected: Boolean(reconnected) })
+      },
+      disconnected({ willAttemptReconnect } = {}) {
+        cableLog("subscription disconnected", {
+          willAttemptReconnect: Boolean(willAttemptReconnect)
+        })
+      },
+      rejected() {
+        console.error("[AnalysisChannel] subscription rejected", {
+          analysisId,
+          timestamp: new Date().toISOString()
+        })
+      },
       received(data) {
+        cableLog("message received", {
+          event: data.event,
+          deltaLength: typeof data.delta === "string" ? data.delta.length : undefined,
+          contentLength: typeof data.content === "string" ? data.content.length : undefined,
+          hasError: Boolean(data.error)
+        })
+
         if (data.status) status.textContent = data.status
 
         switch (data.event) {
@@ -154,7 +192,7 @@
             break
           case "analysis_delta":
             markdownSection.hidden = false
-            markdown += data.delta
+            markdown = typeof data.content === "string" ? data.content : markdown + data.delta
             renderMarkdown()
             break
           case "analysis_completed":
@@ -192,7 +230,14 @@
     }
   )
 
-  window.addEventListener("pagehide", () => {
+  window.addEventListener("online", () => cableLog("browser online"))
+  window.addEventListener("offline", () => cableLog("browser offline"))
+  document.addEventListener("visibilitychange", () => {
+    cableLog("page visibility changed", { pageVisibility: document.visibilityState })
+  })
+
+  window.addEventListener("pagehide", (event) => {
+    cableLog("page hidden; closing subscription", { persisted: event.persisted })
     stopLoadingAnimation()
     subscription.unsubscribe()
     consumer.disconnect()

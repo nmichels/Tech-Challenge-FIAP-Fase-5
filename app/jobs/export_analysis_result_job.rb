@@ -3,7 +3,7 @@ class ExportAnalysisResultJob < ApplicationJob
 
   def perform(analysis_id)
     analysis = Analysis.completed.find(analysis_id)
-    AnalysisChannel.broadcast_to(analysis, event: "export_started")
+    broadcast(analysis, event: "export_started")
     json = generate_json(analysis, analysis.result)
     export = analysis.analysis_export || analysis.build_analysis_export(format: "json")
 
@@ -15,13 +15,22 @@ class ExportAnalysisResultJob < ApplicationJob
     )
     export.save!
 
-    AnalysisChannel.broadcast_to(analysis, event: "export_completed")
+    broadcast(analysis, event: "export_completed")
   rescue => e
-    AnalysisChannel.broadcast_to(analysis, event: "export_failed", error: e.message) if analysis
+    broadcast(analysis, event: "export_failed", error: e.message) if analysis
     raise e
   end
 
   private
+
+  def broadcast(analysis, payload)
+    Rails.logger.info(
+      "[ActionCable] Broadcasting AnalysisChannel event=#{payload[:event]} " \
+      "analysis_id=#{analysis.id} delta_length=#{payload[:delta]&.length || 0} " \
+      "adapter=#{ActionCable.server.config.cable.fetch("adapter")}"
+    )
+    AnalysisChannel.broadcast_to(analysis, payload)
+  end
 
   def client
     @client ||= OpenAI::Client.new(
@@ -51,7 +60,7 @@ class ExportAnalysisResultJob < ApplicationJob
 
     stream.text.each do |delta|
       json << delta
-      AnalysisChannel.broadcast_to(analysis, event: "export_delta", delta: delta)
+      broadcast(analysis, event: "export_delta", delta: delta)
     end
 
     json
