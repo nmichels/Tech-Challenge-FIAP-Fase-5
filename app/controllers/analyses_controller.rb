@@ -46,9 +46,7 @@ class AnalysesController < ApplicationController
   def detect_kind(file)
     content_type = file.content_type
 
-    if content_type.start_with?("text/")
-      "text"
-    elsif content_type.start_with?("image/")
+    if content_type.start_with?("image/")
       "image"
     else
       "unknown"

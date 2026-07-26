@@ -7,9 +7,7 @@ class AnalyzeFileJob < ApplicationJob
     analysis.update!(status: "processing")
     broadcast(analysis, event: "analysis_started", status: analysis.translate_status)
 
-    result = if analysis.kind == "text"
-      analyze_text(analysis)
-    elsif analysis.kind == "image"
+    result = if analysis.kind == "image"
       analyze_image(analysis)
     else
       "Unsupported file type"
@@ -42,41 +40,6 @@ class AnalyzeFileJob < ApplicationJob
     )
   end
 
-  def analyze_text(analysis)
-    file_path = download_file(analysis)
-    base_64_content = Base64.strict_encode64(File.binread(file_path))
-
-    prompt = <<~PROMPT
-      Evaluate the attached markdown file and:
-      1. Perform a risk assessment based on STRIDE methodology
-      2. Suggest additional components and features based on identified cloud providers
-      ### CRITICAL
-      Render final result in Portuguese from Brazil
-    PROMPT
-
-    stream_completion(analysis,
-      model: "gpt-5.6-sol",
-      messages: [
-        {
-          role: "system",
-          content: "You are a senior software architect specialized in software security. #{prompt}"
-          },
-          {
-            role: "user",
-            content: [
-              type: "input_file",
-              input_file: {
-                data: base_64_content
-              }
-            ]
-          }
-      ],
-      modalities: [ "text" ]
-    )
-  ensure
-    File.delete(file_path) if file_path && File.exist?(file_path)
-  end
-
   def analyze_image(analysis)
     file_path = download_file(analysis)
 
@@ -98,8 +61,19 @@ class AnalyzeFileJob < ApplicationJob
                 Evaluate the attached image file and:
                 1. Perform a risk assessment based on STRIDE methodology
                 2. Suggest additional components and features based on identified cloud providers
+                3. Structure breakdown of the analysis:
+                  3.1 - Architecture overview - high level summary of architecture/components and critical points
+                  3.2 - STRIDE Assessment
+                    3.2.1 - Spoofing focused analysis, threats, impact and recommendations
+                    3.2.2 - Tampering focused analysis, threats, impact and recommendations
+                    3.2.3 - Repudiation focused analysis, threats, impact and recommendations
+                    3.2.4 - Information Disclosure focused analysis, threats, impact and recommendations
+                    3.2.5 - Denial of Service  focused analysis, threats, impact and recommendations
+                    3.2.6 - Elevation of Privilege focused analysis, threats, impact and recommendations
+                4. Final Assessment Summary
                 ### CRITICAL
-                Render final result in Portuguese
+                Always classify impact with Low, Medium, High or Critical categories
+                Render final result in Portuguese from Brazil
                 **Do not translate technical terms, architecture component names or cloud resourcers terms**
                 TEXT
               },
