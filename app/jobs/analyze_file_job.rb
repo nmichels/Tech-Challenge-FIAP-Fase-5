@@ -5,6 +5,7 @@ class AnalyzeFileJob < ApplicationJob
     analysis = Analysis.find(analysis_id)
 
     analysis.update!(status: "processing")
+    broadcast(analysis, event: "analysis_started", status: analysis.translate_status)
 
     result = if analysis.kind == "text"
       analyze_text(analysis)
@@ -18,13 +19,17 @@ class AnalyzeFileJob < ApplicationJob
       status: "completed",
       result: result
     )
+    broadcast(analysis, event: "analysis_completed", status: analysis.translate_status)
 
     ExportAnalysisResultJob.perform_later(analysis.id)
   rescue => e
-    analysis.update!(
-      status: "failed",
-      result: e.message
-    ) if analysis
+    if analysis
+      analysis.update!(
+        status: "failed",
+        result: e.message
+      )
+      broadcast(analysis, event: "analysis_failed", status: analysis.translate_status, error: e.message)
+    end
 
     raise e
   end
@@ -49,12 +54,12 @@ class AnalyzeFileJob < ApplicationJob
       Render final result in Portuguese from Brazil
     PROMPT
 
-    response = client.chat.completions.create(
-        model: "gpt-5.6-sol",
-        messages: [
-          {
-            role: "system",
-            content: "You are a senior software architect specialized in software security. #{prompt}"
+    stream_completion(analysis,
+      model: "gpt-5.6-sol",
+      messages: [
+        {
+          role: "system",
+          content: "You are a senior software architect specialized in software security. #{prompt}"
           },
           {
             role: "user",
@@ -65,11 +70,9 @@ class AnalyzeFileJob < ApplicationJob
               }
             ]
           }
-        ],
-        modalities: [ "text" ]
+      ],
+      modalities: [ "text" ]
     )
-
-    response.choices.first.message.content
   ensure
     File.delete(file_path) if file_path && File.exist?(file_path)
   end
@@ -79,12 +82,12 @@ class AnalyzeFileJob < ApplicationJob
 
     base64_image = Base64.strict_encode64(File.read(file_path))
 
-    response = client.chat.completions.create(
-        model: "gpt-5.6-sol",
-        messages: [
-          {
-            role: "system",
-            content: "You are a senior software architect specialized in software security."
+    stream_completion(analysis,
+      model: "gpt-5.6-sol",
+      messages: [
+        {
+          role: "system",
+          content: "You are a senior software architect specialized in software security."
           },
           {
             role: "user",
@@ -107,16 +110,27 @@ class AnalyzeFileJob < ApplicationJob
                 }
               }
             ]
-          }
-        ]
+        }
+      ]
     )
-
-    response.choices.first.message.content
   ensure
     File.delete(file_path) if file_path && File.exist?(file_path)
   end
 
-  private
+  def stream_completion(analysis, **params)
+    result = +""
+
+    client.chat.completions.stream(**params).text.each do |delta|
+      result << delta
+      broadcast(analysis, event: "analysis_delta", delta: delta)
+    end
+
+    result
+  end
+
+  def broadcast(analysis, payload)
+    AnalysisChannel.broadcast_to(analysis, payload)
+  end
 
   def download_file(analysis)
     extension = analysis.file.filename.extension

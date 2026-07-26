@@ -1,33 +1,177 @@
-<div class="card">
+
+
+<div class="card" id="analysis" data-analysis-id="<%= @analysis.id %>" data-analysis-state="<%= @analysis.status %>">
   <h1>FIAP Security Software</h1>
 
   <p>
     <strong>Status da sua requisição:</strong>
-    <%= @analysis.translate_status %>
+    <span id="analysis-status"><%= @analysis.translate_status %></span>
   </p>
 
   <% if @analysis.pending? || @analysis.processing? %>
-    <p>
-        Seu arquivo está em análise. Atualize a página em alguns minutos novamente.
+    <p id="analysis-progress">
+      Seu arquivo está em análise. O resultado aparecerá abaixo conforme for gerado.
+    </p>
+  <% else %>
+    <p id="analysis-progress" hidden>
+      Seu arquivo está em análise. O resultado aparecerá abaixo conforme for gerado.
     </p>
   <% end %>
 
-  <% if @analysis.completed? %>
-    <div class="result">
-      <%= link_to "Visualizar em Markdown", analysis_path(@analysis, format: :md) %>
-
-      <% if @analysis.analysis_export&.file&.attached? %>
-        <%= link_to "Visualizar JSON", analysis_analysis_export_path(@analysis) %>
-      <% else %>
-        <span>Exportação JSON em andamento</span>
-      <% end %>
+  <% if @analysis.failed? %>
+    <div id="analysis-error" class="result">
+      <strong>Falha ao analisar arquivo:</strong>
+      <%= @analysis.result %>
     </div>
+  <% else %>
+    <div id="analysis-error" class="result" hidden></div>
   <% end %>
 
-  <% if @analysis.failed? %>
-    <div class="result">
-        Falha ao analisar arquivo
-      <%= @analysis.result %>
+  <% if @analysis.processing? || @analysis.completed? %>
+    <section id="markdown-section" class="preview">
+      <h2>Análise</h2>
+      <div id="markdown-preview" class="markdown-preview"></div>
+      <%= tag.textarea @analysis.completed? ? @analysis.result : "", id: "initial-markdown", hidden: true %>
+    </section>
+  <% else %>
+    <section id="markdown-section" class="preview" hidden>
+      <h2>Análise</h2>
+      <div id="markdown-preview" class="markdown-preview"></div>
+      <%= tag.textarea "", id: "initial-markdown", hidden: true %>
+    </section>
+  <% end %>
+
+  <% if @analysis.completed? %>
+    <section id="json-section" class="preview">
+      <h2>Exportação JSON</h2>
+      <% if @json_content.present? %>
+        <p id="json-progress" hidden>Exportação JSON em andamento...</p>
+      <% else %>
+        <p id="json-progress">Exportação JSON em andamento...</p>
+      <% end %>
+      <div class="json-preview">
+        <% if @json_content.present? %>
+          <pre id="json-preview"><%= JSON.pretty_generate(JSON.parse(@json_content)) %></pre>
+        <% else %>
+          <pre id="json-preview"></pre>
+        <% end %>
+      </div>
+    </section>
+  <% else %>
+    <section id="json-section" class="preview" hidden>
+      <h2>Exportação JSON</h2>
+      <p id="json-progress">Exportação JSON em andamento...</p>
+      <div class="json-preview">
+        <pre id="json-preview"></pre>
+      </div>
+    </section>
+  <% end %>
+
+  <% if @analysis.completed? %>
+    <div id="result-links" class="result">
+      <%= link_to "Visualizar em Markdown", analysis_path(@analysis, format: :md) %>
+
+      <% if @json_content.present? %>
+        <span id="json-link">
+          <%= link_to "Visualizar JSON", analysis_analysis_export_path(@analysis) %>
+        </span>
+        <span id="json-link-pending" hidden>Exportação JSON em andamento</span>
+      <% else %>
+        <span id="json-link" hidden>
+          <%= link_to "Visualizar JSON", analysis_analysis_export_path(@analysis) %>
+        </span>
+        <span id="json-link-pending">Exportação JSON em andamento</span>
+      <% end %>
+    </div>
+  <% else %>
+    <div id="result-links" class="result" hidden>
+      <%= link_to "Visualizar em Markdown", analysis_path(@analysis, format: :md) %>
+      <span id="json-link" hidden>
+        <%= link_to "Visualizar JSON", analysis_analysis_export_path(@analysis) %>
+      </span>
+      <span id="json-link-pending">Exportação JSON em andamento</span>
     </div>
   <% end %>
 </div>
+
+<script type="module">
+  import { createConsumer } from "<%= asset_path("actioncable.esm.js") %>"
+  import { marked } from "https://cdn.jsdelivr.net/npm/marked@16.1.1/+esm"
+  import DOMPurify from "https://cdn.jsdelivr.net/npm/dompurify@3.2.6/+esm"
+
+  const root = document.getElementById("analysis")
+  const status = document.getElementById("analysis-status")
+  const progress = document.getElementById("analysis-progress")
+  const error = document.getElementById("analysis-error")
+  const markdownSection = document.getElementById("markdown-section")
+  const markdownPreview = document.getElementById("markdown-preview")
+  const jsonSection = document.getElementById("json-section")
+  const jsonPreview = document.getElementById("json-preview")
+  const jsonProgress = document.getElementById("json-progress")
+  const resultLinks = document.getElementById("result-links")
+  const jsonLink = document.getElementById("json-link")
+  const jsonLinkPending = document.getElementById("json-link-pending")
+  let markdown = document.getElementById("initial-markdown").value
+  let json = jsonPreview.textContent
+
+  const renderMarkdown = () => {
+    markdownPreview.innerHTML = DOMPurify.sanitize(marked.parse(markdown))
+  }
+
+  if (markdown) renderMarkdown()
+
+  const consumer = createConsumer()
+  const subscription = consumer.subscriptions.create(
+    { channel: "AnalysisChannel", analysis_id: root.dataset.analysisId },
+    {
+      received(data) {
+        if (data.status) status.textContent = data.status
+
+        switch (data.event) {
+          case "analysis_started":
+            progress.hidden = false
+            markdownSection.hidden = false
+            break
+          case "analysis_delta":
+            markdownSection.hidden = false
+            markdown += data.delta
+            renderMarkdown()
+            break
+          case "analysis_completed":
+            progress.hidden = true
+            resultLinks.hidden = false
+            jsonSection.hidden = false
+            jsonProgress.hidden = false
+            break
+          case "analysis_failed":
+            progress.hidden = true
+            error.hidden = false
+            error.textContent = "Falha ao analisar arquivo: " + data.error
+            break
+          case "export_started":
+            jsonSection.hidden = false
+            jsonProgress.hidden = false
+            break
+          case "export_delta":
+            jsonSection.hidden = false
+            json += data.delta
+            jsonPreview.textContent = json
+            break
+          case "export_completed":
+            jsonProgress.hidden = true
+            jsonLink.hidden = false
+            jsonLinkPending.hidden = true
+            break
+          case "export_failed":
+            jsonProgress.textContent = "Falha ao exportar JSON: " + data.error
+            break
+        }
+      }
+    }
+  )
+
+  window.addEventListener("pagehide", () => {
+    subscription.unsubscribe()
+    consumer.disconnect()
+  }, { once: true })
+</script>

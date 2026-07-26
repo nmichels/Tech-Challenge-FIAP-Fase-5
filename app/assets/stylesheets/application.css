@@ -8,3 +8,41 @@
  *
  * Consider organizing styles into separate files for maintainability.
  */
+
+.preview {
+  margin-top: 24px;
+}
+
+.markdown-preview {
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.markdown-preview pre,
+.json-preview {
+  overflow-x: auto;
+  border-radius: 6px;
+  background: #f5f5f5;
+  padding: 16px;
+}
+
+.markdown-preview pre {
+  white-space: pre;
+}
+
+.json-preview pre {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+#result-links {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  white-space: normal;
+}
+
+#result-links[hidden] {
+  display: none;
+}

@@ -2,8 +2,12 @@ class AnalysesController < ApplicationController
 
   def show
     @analysis = Analysis.find(params[:id])
+
     respond_to do |format|
-      format.html
+      format.html do
+        export = @analysis.analysis_export
+        @json_content = export.file.download.force_encoding('UTF-8') if export&.file&.attached?
+      end
       format.md { render markdown: @analysis }
     end
   end
@@ -31,10 +35,6 @@ class AnalysesController < ApplicationController
     else
       render :new, status: :unprocessable_entity
     end
-  end
-
-  def show
-    @analysis = Analysis.find(params[:id])
   end
 
   private

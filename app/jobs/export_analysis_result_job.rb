@@ -3,7 +3,8 @@ class ExportAnalysisResultJob < ApplicationJob
 
   def perform(analysis_id)
     analysis = Analysis.completed.find(analysis_id)
-    json = generate_json(analysis.result)
+    AnalysisChannel.broadcast_to(analysis, event: "export_started")
+    json = generate_json(analysis, analysis.result)
     export = analysis.analysis_export || analysis.build_analysis_export(format: "json")
 
     export.format = "json"
@@ -13,6 +14,11 @@ class ExportAnalysisResultJob < ApplicationJob
       content_type: "application/json"
     )
     export.save!
+
+    AnalysisChannel.broadcast_to(analysis, event: "export_completed")
+  rescue => e
+    AnalysisChannel.broadcast_to(analysis, event: "export_failed", error: e.message) if analysis
+    raise e
   end
 
   private
@@ -23,8 +29,9 @@ class ExportAnalysisResultJob < ApplicationJob
     )
   end
 
-  def generate_json(result)
-    response = client.chat.completions.create(
+  def generate_json(analysis, result)
+    json = +""
+    stream = client.chat.completions.stream(
       model: "gpt-5.6-sol",
       messages: [
         {
@@ -42,6 +49,11 @@ class ExportAnalysisResultJob < ApplicationJob
       response_format: JsonSchema::RISK_ANALYSIS
     )
 
-    response.choices.first.message.content
+    stream.text.each do |delta|
+      json << delta
+      AnalysisChannel.broadcast_to(analysis, event: "export_delta", delta: delta)
+    end
+
+    json
   end
 end
